@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat Uygulaması</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.css">
+    <style>
+        body,
+        html {
+            height: 100%;
+            margin: 0;
+            font-family: Arial, Helvetica, sans-serif;
+        }
+
+        .chat-container {
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        .messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 20px;
+            background-color: #f1f1f1;
+        }
+
+        .message {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 10px;
+        }
+
+        .message.sent {
+            background-color: #dcf8c6;
+            align-self: flex-end;
+        }
+
+        .message.received {
+            background-color: #ffffff;
+            align-self: flex-start;
+        }
+
+        .input-group {
+            padding: 10px;
+            background-color: #ffffff;
+            border-top: 1px solid #ddd;
+        }
+
+        .input-group input {
+            height: 40px;
+            border-radius: 20px;
+            border: 1px solid #ddd;
+            padding: 0 15px;
+            width: 100%;
+        }
+
+        .input-group button {
+            margin-left: 10px;
+            border-radius: 20px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="chat-container">
+        <div class="messages" id="messages">
+            <!-- Mesajlar buraya eklenecek -->
+        </div>
+        <div class="input-group">
+            <input id="user-message" type="text" placeholder="Mesajınızı yazın...">
+            <button class="btn btn-primary" id="send-button">Gönder</button>
+            <button class="btn btn-secondary" id="emoji-button">😊</button>
+        </div>
+    </div>
+
+    <div class="user-list-container">
+        <h5>Aktif Kullanıcılar</h5>
+        <div id="user-list">
+            <!-- Kullanıcı listesi buraya eklenecek -->
+        </div>
+    </div>
+
+    <div class="group-management">
+        <h5>Grup Yönetimi</h5>
+        <input id="group-name" type="text" placeholder="Grup adı...">
+        <button class="btn btn-secondary" id="create-group">Grup Oluştur</button>
+        <button class="btn btn-secondary" id="update-group">Grup Güncelle</button>
+        <button class="btn btn-secondary" id="delete-group">Grup Sil</button>
+        <input id="new-group-name" type="text" placeholder="Yeni grup adı...">
+        <input id="add-user-to-group" type="text" placeholder="Kullanıcı adı...">
+        <button class="btn btn-secondary" id="add-user">Kullanıcı Ekle</button>
+    </div>
+
+    <script src="/bad-path/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@joeattardi/emoji-button@4.6.0/dist/index.js"></script>
+    <script>
+        // Kullanıcı adı belirleme
+        let username = prompt("Lütfen kullanıcı adınızı girin:") || "Misafir";
+
+        // Sunucuya bağlan
+        const socket = io('http://localhost:8001');
+        socket.on('connect', () => {
+            console.log('Sunucuya bağlandı');
+            socket.emit('join', { username });
+        });
+
+        // Kullanıcı katıldığında mesaj göster
+        socket.on('userJoined', ({ username }) => {
+            const joinMessage = document.createElement('div');
+            joinMessage.classList.add('message', 'received');
+            joinMessage.textContent = `${username} katıldı`;
+            document.querySelector('#messages').appendChild(joinMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Kullanıcı ayrıldığında mesaj göster
+        socket.on('userLeft', ({ username }) => {
+            const leftMessage = document.createElement('div');
+            leftMessage.classList.add('message', 'received');
+            leftMessage.textContent = `${username} ayrıldı`;
+            document.querySelector('#messages').appendChild(leftMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Kullanıcı listesi güncelleme
+        socket.on('updateUserList', (users) => {
+            const userList = document.querySelector('#user-list');
+            userList.innerHTML = '';
+            users.forEach((user) => {
+                const userElement = document.createElement('div');
+                userElement.textContent = user;
+                userList.appendChild(userElement);
+            });
+        });
+
+        // Sunucudan gelen mesajları dinle
+        socket.on('newMessageToClients', ({ username, text }) => {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', 'received');
+            messageElement.innerHTML = `<strong>${username}:</strong> ${text}`;
+            document.querySelector('#messages').appendChild(messageElement);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Mesaj gönderme işlemi
+        document.querySelector('#send-button').addEventListener('click', () => {
+            const newMessage = document.querySelector('#user-message').value.trim();
+            if (newMessage) {
+                // Mesajı sunucuya gönder
+                socket.emit('newMessageToServer', { text: newMessage, username });
+
+                // Mesajı kendi arayüzüne ekle
+                const messageElement = document.createElement('div');
+                messageElement.classList.add('message', 'sent');
+                messageElement.innerHTML = `<strong>${username}:</strong> ${newMessage}`;
+                document.querySelector('#messages').appendChild(messageElement);
+                document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+
+                // Mesaj giriş alanını temizle
+                document.querySelector('#user-message').value = '';
+            }
+        });
+
+        // Enter tuşuna basıldığında mesaj gönder
+        document.querySelector('#user-message').addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                document.querySelector('#send-button').click();
+            }
+        });
+
+        // Kullanıcı yazıyor durumunda
+        document.querySelector('#user-message').addEventListener('input', () => {
+            socket.emit('typing', { username });
+        });
+
+        // Kullanıcı yazmayı durdurduğunda
+        document.querySelector('#user-message').addEventListener('blur', () => {
+            socket.emit('stopTyping', { username });
+        });
+
+        // Kullanıcı yazıyor mesajı göster
+        socket.on('typing', ({ username }) => {
+            if (!document.querySelector('#typing')) {
+                const typingMessage = document.createElement('div');
+                typingMessage.id = 'typing';
+                typingMessage.classList.add('message', 'received');
+                typingMessage.textContent = `${username} yazıyor...`;
+                document.querySelector('#messages').appendChild(typingMessage);
+                document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+            }
+        });
+
+        // Kullanıcı yazmayı durdurduğunda mesajı kaldır
+        socket.on('stopTyping', () => {
+            const typingElement = document.querySelector('#typing');
+            if (typingElement) {
+                typingElement.remove();
+            }
+        });
+
+        // Grup oluşturma
+        document.querySelector('#create-group').addEventListener('click', () => {
+            const groupName = document.querySelector('#group-name').value.trim();
+            if (groupName) {
+                socket.emit('createGroup', groupName);
+            }
+        });
+
+        // Grubu güncelleme
+        document.querySelector('#update-group').addEventListener('click', () => {
+            const groupName = document.querySelector('#group-name').value.trim();
+            const newGroupName = document.querySelector('#new-group-name').value.trim();
+            if (groupName && newGroupName) {
+                socket.emit('updateGroup', { groupName, newGroupName });
+            }
+        });
+
+        // Grubu silme
+        document.querySelector('#delete-group').addEventListener('click', () => {
+            const groupName = document.querySelector('#group-name').value.trim();
+            if (groupName) {
+                socket.emit('deleteGroup', groupName);
+            }
+        });
+
+        // Gruba kullanıcı ekleme
+        document.querySelector('#add-user').addEventListener('click', () => {
+            const groupName = document.querySelector('#group-name').value.trim();
+            const username = document.querySelector('#add-user-to-group').value.trim();
+            if (groupName && username) {
+                socket.emit('addUserToGroup', { groupName, username });
+            }
+        });
+
+        // Grup oluşturulduğunda mesaj göster
+        socket.on('groupCreated', (groupName) => {
+            const groupMessage = document.createElement('div');
+            groupMessage.classList.add('message', 'received');
+            groupMessage.textContent = `Grup oluşturuldu: ${groupName}`;
+            document.querySelector('#messages').appendChild(groupMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Grup güncellendiğinde mesaj göster
+        socket.on('groupUpdated', ({ oldName, newName }) => {
+            const groupMessage = document.createElement('div');
+            groupMessage.classList.add('message', 'received');
+            groupMessage.textContent = `Grup güncellendi: ${oldName} -> ${newName}`;
+            document.querySelector('#messages').appendChild(groupMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Grup silindiğinde mesaj göster
+        socket.on('groupDeleted', (groupName) => {
+            const groupMessage = document.createElement('div');
+            groupMessage.classList.add('message', 'received');
+            groupMessage.textContent = `Grup silindi: ${groupName}`;
+            document.querySelector('#messages').appendChild(groupMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Gruba kullanıcı eklendiğinde mesaj göster
+        socket.on('userAddedToGroup', ({ groupName, username }) => {
+            const groupMessage = document.createElement('div');
+            groupMessage.classList.add('message', 'received');
+            groupMessage.textContent = `${username} gruba eklendi: ${groupName}`;
+            document.querySelector('#messages').appendChild(groupMessage);
+            document.querySelector('#messages').scrollTop = document.querySelector('#messages').scrollHeight;
+        });
+
+        // Mesaja emoji bırakma
+        document.querySelector('#messages').addEventListener('click', (event) => {
+            if (event.target.classList.contains('message')) {
+                const messageId = event.target.dataset.id;
+                const emoji = prompt("Emoji girin:");
+                if (emoji) {
+                    socket.emit('addEmojiToMessage', { messageId, emoji });
+                }
+            }
+        });
+
+        // Mesaja emoji eklendiğinde göster
+        socket.on('emojiAddedToMessage', ({ messageId, emoji }) => {
+            const messageElement = document.querySelector(`[data-id="${messageId}"]`);
+            if (messageElement) {
+                messageElement.innerHTML += ` ${emoji}`;
+            }
+        });
+
+        // Emoji picker
+        const picker = new EmojiButton();
+        document.querySelector('#emoji-button').addEventListener('click', () => {
+            picker.togglePicker(document.querySelector('#emoji-button'));
+        });
+
+        picker.on('emoji', emoji => {
+            document.querySelector('#user-message').value += emoji;
+        });
+    </script>
+</body>
+
+</html>
+
+<style>
+    .user-list-container {
+        padding: 10px;
+        background-color: #ffffff;
+        border-top: 1px solid #ddd;
+        border-bottom: 1px solid #ddd;
+    }
+
+    #user-list {
+        max-height: 200px;
+        overflow-y: auto;
+    }
+
+    #user-list div {
+        padding: 5px;
+        border-bottom: 1px solid #ddd;
+    }
+</style>

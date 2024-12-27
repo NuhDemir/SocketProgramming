@@ -1,0 +1,24 @@
+<script src="/socket.io/socket.io.js">
+
+</script>
+
+<script>
+    //bu kısım server.js dosyasındaki io nesnesine erişmek için kullanılır.
+    // console.log(io);
+
+
+    const socket = io('http://localhost:8000');
+    // console.log(socket);
+    socket.on('connect', () => {
+        console.log(socket.id);
+    });
+    socket.on('multipleMessages', (data) => {
+        console.log(data);
+
+    });
+
+    socket.io.on('reconnect', (data) => {
+        console.log("reconnect");
+        console.log(data);
+    })
+</script>
